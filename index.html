@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
     <head>
-   <title> AR Invitation </title>
+        
+        <title> AR Invitation </title>
         <meta name="viewport" content="width=device-width,height=device-height">
 	<meta name="apple-mobile-web-app-capable" content="yes">
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
@@ -10,9 +11,6 @@
      
         <script src="https://aframe.io/releases/0.8.2/aframe.min.js"></script>
         <script src="https://cdn.rawgit.com/jeromeetienne/AR.js/1.5.5/aframe/build/aframe-ar.js"></script>
-
-
-
 
 
         <script>
@@ -62,7 +60,7 @@
 
             <a-marker id="marker1" type='pattern' url='markers/invi-pattern-marker.patt' video-vidhandler>
                 <!--<a-box position='0 0 0' material='color: red;'></a-box>-->
-                <a-plane scale = "4 2" position='0 0.1 0' rotation="90 0 0" material='transparent:true;src:#invitation' controls></a-plane>
+                <a-plane scale = "4 2" position='0 0.1 0' rotation="-90 0 0" material='transparent:true;src:#invitation' controls></a-plane>
                 <!--<a-entity text="font: https://cdn.aframe.io/fonts/mozillavr.fnt; value: Fun Moments"></a-entity>-->
             </a-marker>
 
