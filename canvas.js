@@ -1,103 +1,122 @@
-const canvas = document.getElementById("canvas");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-let ctx = canvas.getContext("2d")
+var fireworks = [];
+var gravity;
 
-function Firework(dx,dy,boomHeight){
-  this.x = canvas.width / 2;
-  this.y = canvas.height;
-  this.boomHeight = boomHeight;
-  this.boom = false;
-  this.dx = dx;
-  this.dy = dy;
-  
-  this.draw = function(){
-    ctx.save();
-    ctx.fillStyle = "white";
-    ctx.beginPath();
-    //ctx.fillRect(this.x,this.y,5,20);
-    ctx.arc(this.x,this.y,5,Math.PI * 2,0,false)
-    ctx.fill();
-    ctx.restore();
+function setup(){
+  createCanvas(window.innerWidth, window.innerHeight);
+  strokeWeight(4);
+  stroke(255);
+  gravity = createVector(0, 0.2);
+}
+
+function draw(){
+  colorMode(RGB);
+  background(0, 50);
+  if(random(1) <= 0.03){
+    this.fireworks.push(new Firework());
   }
-  
+  this.fireworks.forEach(function(firework){
+    firework.update();
+    firework.show();
+  });
+}
+
+/*
+  Firework
+*/
+
+function Firework(){
+  this.hu = random(255);
+  this.firework = new Particle(random(width), height, this.hu,false);
+  this.exploded = false;
+  this.particles = [];
+
   this.update = function(){
-    this.x += this.dx * 5;
-    this.y -= this.dy * 5;
-    if(this.y < this.boomHeight){
-      this.boom = true;
-      for(var i = 0; i < 100; i++){
-      particleArray.push(new Particle(this.x,this.y));
+    if(!this.exploded){
+      this.firework.applyForce(gravity);
+      this.firework.update();
+
+      if(this.firework.vel.y >= 0){
+        this.exploded = true;
+        this.explode();
       }
     }
-    this.draw();
-  }
-  this.update();
-}
 
-var colors = ["rgba(255,255,255,","rgba(91,230,123,","rgba(4,243,60,","rgba(4,211,243","rgba(102,204,255,","rgba(102,133,255"]
-
-function Particle(x,y){
-  this.x = x;
-  this.y = y;
-  this.alpha = 1;
-  this.fade = false;
-  this.color = colors[Math.floor(Math.random() * colors.length)]
-  this.radius = Math.random() * 2 + 1;
-  this.dx = (Math.random() * 10) - 4;
-  this.dy = (Math.random() * 10) - 5;
-  
-  this.draw = function(){
-    ctx.fillStyle = this.color + this.alpha + ")";
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.beginPath();
-    ctx.arc(this.x,this.y,this.radius,Math.PI * 2,0,false)
-    ctx.restore();
-    ctx.fill();
-  }
-  this.update = function(){
-    this.x += this.dx;
-    this.y += this.dy;
-    this.dy += 0.05;
-    this.alpha = this.alpha - 0.02;
-    if(this.alpha < 0){
-      this.fade = true;
+    for(var i=this.particles.length-1;i>=0;i--){
+      this.particles[i].applyForce(gravity);
+      this.particles[i].update();
+      if(this.particles[i].done()){
+        this.particles.splice(i, 1);
+      }
     }
-    this.draw();
+
   }
-  this.update();
+
+  this.explode = function(){
+    for(var i=0;i<40;i++){
+      var p = new Particle(this.firework.pos.x, this.firework.pos.y, this.hu,true);
+      this.particles.push(p);
+    }
+  }
+
+  this.show = function(){
+    if(!this.exploded){
+      this.firework.show();
+    }
+
+    for(var i=0;i<this.particles.length;i++){
+      this.particles[i].show();
+    }
+  }
 }
 
-var fireworkArray = [];
-var particleArray = [];
+/*
+  Particle
+*/
 
-window.addEventListener("click", function(e){
-  var angle = Math.atan2(e.clientY - canvas.height,
-                         e.clientX - canvas.width / 2)
-  var dx = Math.cos(angle);
-  var dy = Math.sin(-angle);
-  fireworkArray.push(new Firework(dx,dy,e.clientY))
-})
+function Particle(x,y,hu,firework){
+  this.hu = hu;
+  this.firework = firework;
+  this.lifespan = 255;
+  this.pos = createVector(x, y);
+  if(!this.firework){
+    this.vel = createVector(0,random(-15, -8));
+  } else {
+    this.vel = p5.Vector.random2D();
+    this.vel.mult(random(2,3));
+  }
+  this.acc = createVector(0,0);
 
-function animate(){
-  requestAnimationFrame(animate);
-  ctx.fillStyle = "rgba(75,75,75,0.1)";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  for(var i = 0; i < fireworkArray.length; i++){
-    fireworkArray[i].update();
+  this.applyForce = function(force){
+    this.acc.add(force);
   }
-  for(var i = 0; i < particleArray.length; i++){
-    particleArray[i].update();
+
+  this.update = function(){
+    if(this.firework){
+      this.vel.mult(1);
+      this.lifespan -= 5;
+    }
+    this.vel.add(this.acc);
+    this.pos.add(this.vel);
+    this.acc.mult(0);
   }
-  
-  fireworkArray = fireworkArray.filter(obj => !obj.boom);
-  particleArray = particleArray.filter(obj => !obj.fade);
+
+  this.done = function(){
+    if(this.lifespan  <= 0){
+      return true;
+    } else{
+      return false;
+    }
+  }
+
+  this.show = function(){
+    colorMode(HSB);
+    if(this.firework){
+      strokeWeight(2);
+      stroke(this.hu, random(200),100,this.lifespan);
+    } else {
+      strokeWeight(4);
+      stroke(this.hu,random(200),100);
+    }
+    point(this.pos.x, this.pos.y);
+  }
 }
-animate();
-
-window.addEventListener("resize", () => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-})
-
