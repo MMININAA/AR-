@@ -1,320 +1,312 @@
-
-$(function(){
-
-var Fireworks = function(){
-var self = this;
-var rand = function(rMi, rMa){return ~~((Math.random()*(rMa-rMi+1))+rMi);}
-var hitTest = function(x1, y1, w1, h1, x2, y2, w2, h2){return !(x1 + w1 < x2 || x2 + w2 < x1 || y1 + h1 < y2 || y2 + h2 < y1);};
-window.requestAnimFrame=function(){return window.requestAnimationFrame||window.webkitRequestAnimationFrame||window.mozRequestAnimationFrame||window.oRequestAnimationFrame||window.msRequestAnimationFrame||function(a){window.setTimeout(a,1E3/60)}}();
-
-self.init = function(){	
-self.canvas = document.createElement('canvas');				
-self.canvas.width = self.cw = $(window).innerWidth();
-self.canvas.height = self.ch = $(window).innerHeight();			
-self.particles = [];	
-self.partCount = 150;
-self.fireworks = [];	
-self.mx = self.cw/2;
-self.my = self.ch/2;
-self.currentHue = 30;
-self.partSpeed = 5;
-self.partSpeedVariance = 10;
-self.partWind = 50;
-self.partFriction = 5;
-self.partGravity = 1;
-self.hueMin = 0;
-self.hueMax = 360;
-self.fworkSpeed = 4;
-self.fworkAccel = 10;
-self.hueVariance = 30;
-self.flickerDensity = 25;
-self.showShockwave = true;
-self.showTarget = false;
-self.clearAlpha = 25;
-
-$(document.body).append(self.canvas);
-self.ctx = self.canvas.getContext('2d');
-self.ctx.lineCap = 'round';
-self.ctx.lineJoin = 'round';
-self.lineWidth = 1;
-self.bindEvents();			
-self.canvasLoop();
-
-self.canvas.onselectstart = function() {
-return false;
-};
-};		
-
-self.createParticles = function(x,y, hue){
-var countdown = self.partCount;
-while(countdown--){
-var newParticle = {
-	x: x,
-	y: y,
-	coordLast: [
-		{x: x, y: y},
-		{x: x, y: y},
-		{x: x, y: y}
-	],
-	angle: rand(0, 360),
-	speed: rand(((self.partSpeed - self.partSpeedVariance) <= 0) ? 1 : self.partSpeed - self.partSpeedVariance, (self.partSpeed + self.partSpeedVariance)),
-	friction: 1 - self.partFriction/100,
-	gravity: self.partGravity/2,
-	hue: rand(hue-self.hueVariance, hue+self.hueVariance),
-	brightness: rand(50, 80),
-	alpha: rand(40,100)/100,
-	decay: rand(10, 50)/1000,
-	wind: (rand(0, self.partWind) - (self.partWind/2))/25,
-	lineWidth: self.lineWidth
-};				
-self.particles.push(newParticle);
-}
+// Options
+var options = {
+  /* Which hue should be used for the first batch of rockets? */
+  startingHue: 120,
+  /* How many ticks the script should wait before a new firework gets spawned, if the user is holding down his mouse button. */
+  clickLimiter: 5,
+  /* How fast the rockets should automatically spawn, based on ticks */
+  timerInterval: 40,
+  /* Show pulsing circles marking the targets? */
+  showTargets: true,
+  /* Rocket movement options, should be self-explanatory */
+  rocketSpeed: 2,
+  rocketAcceleration: 1.03,
+  /* Particle movement options, should be self-explanatory */
+  particleFriction: 0.95,
+  particleGravity: 1,
+  /* Minimum and maximum amount of particle spawns per rocket */
+  particleMinCount: 25,
+  particleMaxCount: 40,
+  /* Minimum and maximum radius of a particle */
+  particleMinRadius: 3,
+  particleMaxRadius: 5
 };
 
+// Local variables
+var fireworks = [];
+var particles = [];
+var mouse = {down: false, x: 0, y: 0};
+var currentHue = options.startingHue;
+var clickLimiterTick = 0;
+var timerTick = 0;
+var cntRocketsLaunched = 0;
 
-self.updateParticles = function(){
-var i = self.particles.length;
-while(i--){
-var p = self.particles[i];
-var radians = p.angle * Math.PI / 180;
-var vx = Math.cos(radians) * p.speed;
-var vy = Math.sin(radians) * p.speed;
-p.speed *= p.friction;
-				
-p.coordLast[2].x = p.coordLast[1].x;
-p.coordLast[2].y = p.coordLast[1].y;
-p.coordLast[1].x = p.coordLast[0].x;
-p.coordLast[1].y = p.coordLast[0].y;
-p.coordLast[0].x = p.x;
-p.coordLast[0].y = p.y;
+// Helper function for canvas animations
+window.requestAnimFrame = (function() {
+  return window.requestAnimationFrame ||
+    window.webkitRequestAnimationFrame ||
+    window.mozRequestAnimationFrame ||
+    function(cb) {
+      window.setTimeout(callback, 1000 / 60);
+    }
+})();
 
-p.x += vx;
-p.y += vy;
-p.y += p.gravity;
-
-p.angle += p.wind;				
-p.alpha -= p.decay;
-
-if(!hitTest(0,0,self.cw,self.ch,p.x-p.radius, p.y-p.radius, p.radius*2, p.radius*2) || p.alpha < .05){					
-	self.particles.splice(i, 1);	
-}
-};
-};
-
-self.drawParticles = function(){
-var i = self.particles.length;
-while(i--){
-var p = self.particles[i];							
-
-var coordRand = (rand(1,3)-1);
-self.ctx.beginPath();								
-self.ctx.moveTo(Math.round(p.coordLast[coordRand].x), Math.round(p.coordLast[coordRand].y));
-self.ctx.lineTo(Math.round(p.x), Math.round(p.y));
-self.ctx.closePath();				
-self.ctx.strokeStyle = 'hsla('+p.hue+', 100%, '+p.brightness+'%, '+p.alpha+')';
-self.ctx.stroke();				
-
-if(self.flickerDensity > 0){
-	var inverseDensity = 50 - self.flickerDensity;					
-	if(rand(0, inverseDensity) === inverseDensity){
-		self.ctx.beginPath();
-		self.ctx.arc(Math.round(p.x), Math.round(p.y), rand(p.lineWidth,p.lineWidth+3)/2, 0, Math.PI*2, false)
-		self.ctx.closePath();
-		var randAlpha = rand(50,100)/100;
-		self.ctx.fillStyle = 'hsla('+p.hue+', 100%, '+p.brightness+'%, '+randAlpha+')';
-		self.ctx.fill();
-	}	
-}
-};
-};
-
-
-self.createFireworks = function(startX, startY, targetX, targetY){
-var newFirework = {
-x: startX,
-y: startY,
-startX: startX,
-startY: startY,
-hitX: false,
-hitY: false,
-coordLast: [
-	{x: startX, y: startY},
-	{x: startX, y: startY},
-	{x: startX, y: startY}
-],
-targetX: targetX,
-targetY: targetY,
-speed: self.fworkSpeed,
-angle: Math.atan2(targetY - startY, targetX - startX),
-shockwaveAngle: Math.atan2(targetY - startY, targetX - startX)+(90*(Math.PI/180)),
-acceleration: self.fworkAccel/100,
-hue: self.currentHue,
-brightness: rand(50, 80),
-alpha: rand(50,100)/100,
-lineWidth: self.lineWidth
-};			
-self.fireworks.push(newFirework);
-
-};
-
-
-self.updateFireworks = function(){
-var i = self.fireworks.length;
-
-while(i--){
-var f = self.fireworks[i];
-self.ctx.lineWidth = f.lineWidth;
-
-vx = Math.cos(f.angle) * f.speed,
-vy = Math.sin(f.angle) * f.speed;
-f.speed *= 1 + f.acceleration;				
-f.coordLast[2].x = f.coordLast[1].x;
-f.coordLast[2].y = f.coordLast[1].y;
-f.coordLast[1].x = f.coordLast[0].x;
-f.coordLast[1].y = f.coordLast[0].y;
-f.coordLast[0].x = f.x;
-f.coordLast[0].y = f.y;
-
-if(f.startX >= f.targetX){
-	if(f.x + vx <= f.targetX){
-		f.x = f.targetX;
-		f.hitX = true;
-	} else {
-		f.x += vx;
-	}
-} else {
-	if(f.x + vx >= f.targetX){
-		f.x = f.targetX;
-		f.hitX = true;
-	} else {
-		f.x += vx;
-	}
+// Helper function to return random numbers within a specified range
+function random(min, max) {
+  return Math.random() * (max - min) + min;
 }
 
-if(f.startY >= f.targetY){
-	if(f.y + vy <= f.targetY){
-		f.y = f.targetY;
-		f.hitY = true;
-	} else {
-		f.y += vy;
-	}
-} else {
-	if(f.y + vy >= f.targetY){
-		f.y = f.targetY;
-		f.hitY = true;
-	} else {
-		f.y += vy;
-	}
-}				
-
-if(f.hitX && f.hitY){
-	self.createParticles(f.targetX, f.targetY, f.hue);
-	self.fireworks.splice(i, 1);
-	
+// Helper function to calculate the distance between 2 points
+function calculateDistance(p1x, p1y, p2x, p2y) {
+  var xDistance = p1x - p2x;
+  var yDistance = p1y - p2y;
+  return Math.sqrt(Math.pow(xDistance, 2) + Math.pow(yDistance, 2));
 }
+
+// Setup some basic variables
+var canvas = document.getElementById('canvas');
+var canvasCtx = canvas.getContext('2d');
+var canvasWidth = window.innerWidth;
+var canvasHeight = window.innerHeight;
+
+// Resize canvas
+canvas.width = canvasWidth;
+canvas.height = canvasHeight;
+
+// Firework class
+function Firework(sx, sy, tx, ty) {  
+  // Set coordinates (x/y = actual, sx/sy = starting, tx/ty = target)
+  this.x = this.sx = sx;
+  this.y = this.sy = sy;
+  this.tx = tx; this.ty = ty;
+  
+  // Calculate distance between starting and target point
+  this.distanceToTarget = calculateDistance(sx, sy, tx, ty);
+  this.distanceTraveled = 0;
+
+  // To simulate a trail effect, the last few coordinates will be stored
+  this.coordinates = [];
+  this.coordinateCount = 3;
+  
+  // Populate coordinate array with initial data
+  while(this.coordinateCount--) {
+    this.coordinates.push([this.x, this.y]);
+  }
+  
+  // Some settings, you can adjust them if you'd like to do so.
+  this.angle = Math.atan2(ty - sy, tx - sx);
+  this.speed = options.rocketSpeed;
+  this.acceleration = options.rocketAcceleration;
+  this.brightness = random(50, 80);
+  this.hue = currentHue;
+  this.targetRadius = 1;
+  this.targetDirection = false;  // false = Radius is getting bigger, true = Radius is getting smaller
+  
+  // Increase the rockets launched counter
+  cntRocketsLaunched++;
 };
+
+// This method should be called each frame to update the firework
+Firework.prototype.update = function(index) {
+  // Update the coordinates array
+  this.coordinates.pop();
+  this.coordinates.unshift([this.x, this.y]);
+  
+  // Cycle the target radius (used for the pulsing target circle)
+  if(!this.targetDirection) {
+    if(this.targetRadius < 8)
+      this.targetRadius += 0.15;
+    else
+      this.targetDirection = true;  
+  } else {
+    if(this.targetRadius > 1)
+      this.targetRadius -= 0.15;
+    else
+      this.targetDirection = false;
+  }
+  
+  // Speed up the firework (could possibly travel faster than the speed of light) 
+  this.speed *= this.acceleration;
+  
+  // Calculate the distance the firework has travelled so far (based on velocities)
+  var vx = Math.cos(this.angle) * this.speed;
+  var vy = Math.sin(this.angle) * this.speed;
+  this.distanceTraveled = calculateDistance(this.sx, this.sy, this.x + vx, this.y + vy);
+  
+  // If the distance traveled (including velocities) is greater than the initial distance
+  // to the target, then the target has been reached. If that's not the case, keep traveling.
+  if(this.distanceTraveled >= this.distanceToTarget) {
+    createParticles(this.tx, this.ty);
+    fireworks.splice(index, 1);
+  } else {
+    this.x += vx;
+    this.y += vy;
+  }
 };
 
-self.drawFireworks = function(){
-var i = self.fireworks.length;
-self.ctx.globalCompositeOperation = 'lighter';
-while(i--){
-var f = self.fireworks[i];		
-self.ctx.lineWidth = f.lineWidth;
+// Draws the firework
+Firework.prototype.draw = function() {
+  var lastCoordinate = this.coordinates[this.coordinates.length - 1];
+  
+  // Draw the rocket
+  canvasCtx.beginPath();
+  canvasCtx.moveTo(lastCoordinate[0], lastCoordinate[1]);
+  canvasCtx.lineTo(this.x, this.y);
+  canvasCtx.strokeStyle = 'hsl(' + this.hue + ',100%,' + this.brightness + '%)';
+  canvasCtx.stroke();
+  
+  // Draw the target (pulsing circle)
+  if(options.showTargets) {
+    canvasCtx.beginPath();
+    canvasCtx.arc(this.tx, this.ty, this.targetRadius, 0, Math.PI * 2);
+    canvasCtx.stroke();
+  }
+};
 
-var coordRand = (rand(1,3)-1);					
-self.ctx.beginPath();							
-self.ctx.moveTo(Math.round(f.coordLast[coordRand].x), Math.round(f.coordLast[coordRand].y));
-self.ctx.lineTo(Math.round(f.x), Math.round(f.y));
-self.ctx.closePath();
-self.ctx.strokeStyle = 'hsla('+f.hue+', 100%, '+f.brightness+'%, '+f.alpha+')';
-self.ctx.stroke();	
-
-if(self.showTarget){
-	self.ctx.save();
-	self.ctx.beginPath();
-	self.ctx.arc(Math.round(f.targetX), Math.round(f.targetY), rand(1,8), 0, Math.PI*2, false)
-	self.ctx.closePath();
-	self.ctx.lineWidth = 1;
-	self.ctx.stroke();
-	self.ctx.restore();
+// Particle class
+function Particle(x, y) {
+  // Set the starting point
+  this.x = x;
+  this.y = y;
+  
+  // To simulate a trail effect, the last few coordinates will be stored
+  this.coordinates = [];
+  this.coordinateCount = 5;
+  
+  // Populate coordinate array with initial data
+  while(this.coordinateCount--) {
+    this.coordinates.push([this.x, this.y]);
+  }
+  
+  // Set a random angle in all possible directions (radians)
+  this.angle = random(0, Math.PI * 2);
+  this.speed = random(1, 10);
+  
+  // Add some friction and gravity to the particle
+  this.friction = options.particleFriction;
+  this.gravity = options.particleGravity;
+  
+  // Change the hue to a random number
+  this.hue = random(currentHue - 20, currentHue + 20);
+  this.brightness = random(50, 80);
+  this.alpha = 1;
+  
+  // Set how fast the particles decay
+  this.decay = random(0.01, 0.03);
 }
-	
-if(self.showShockwave){
-	self.ctx.save();
-	self.ctx.translate(Math.round(f.x), Math.round(f.y));
-	self.ctx.rotate(f.shockwaveAngle);
-	self.ctx.beginPath();
-	self.ctx.arc(0, 0, 1*(f.speed/5), 0, Math.PI, true);
-	self.ctx.strokeStyle = 'hsla('+f.hue+', 100%, '+f.brightness+'%, '+rand(25, 60)/100+')';
-	self.ctx.lineWidth = f.lineWidth;
-	self.ctx.stroke();
-	self.ctx.restore();
-}
-};
-};
 
-self.bindEvents = function(){
-$(window).on('resize', function(){			
-clearTimeout(self.timeout);
-self.timeout = setTimeout(function() {
-	self.canvas.width = self.cw = $(window).innerWidth();
-	self.canvas.height = self.ch = $(window).innerHeight();
-	self.ctx.lineCap = 'round';
-	self.ctx.lineJoin = 'round';
-}, 100);
+// Updates the particle, should be called each frame
+Particle.prototype.update = function(index) {
+  // Update the coordinates array
+  this.coordinates.pop();
+  this.coordinates.unshift([this.x, this.y]);
+  
+  // Slow it down (based on friction)
+  this.speed *= this.friction;
+  
+  // Apply velocity to the particle
+  this.x += Math.cos(this.angle) * this.speed;
+  this.y += Math.sin(this.angle) * this.speed + this.gravity;
+  
+  // Fade out the particle, and remove it if alpha is low enough
+  this.alpha -= this.decay;
+  if(this.alpha <= this.decay) {
+    particles.splice(index, 1);
+  }
+}
+
+// Draws the particle
+Particle.prototype.draw = function() {
+  var lastCoordinate = this.coordinates[this.coordinates.length - 1];
+  var radius = Math.round(random(options.particleMinRadius, options.particleMaxRadius));
+  
+  // Create a new shiny gradient
+  var gradient = canvasCtx.createRadialGradient(this.x, this.y, 0, this.x, this.y, radius);
+  gradient.addColorStop(0.0, 'white');
+  gradient.addColorStop(0.1, 'white');
+  gradient.addColorStop(0.1, 'hsla(' + this.hue + ',100%,' + this.brightness + '%,' + this.alpha + ')');
+  gradient.addColorStop(1.0, 'black');
+  
+  // Draw the gradient
+  canvasCtx.beginPath();
+  canvasCtx.fillStyle = gradient;
+  canvasCtx.arc(this.x, this.y, radius, Math.PI * 2, false);
+  canvasCtx.fill();
+}
+
+// Create a bunch of particles at the given position
+function createParticles(x, y) {
+  var particleCount = Math.round(random(options.particleMinCount, options.particleMaxCount));
+  while(particleCount--) {
+    particles.push(new Particle(x, y));
+  }
+}
+
+// Add an event listener to the window so we're able to react to size changes
+window.addEventListener('resize', function(e) {
+  canvas.width = canvasWidth = window.innerWidth;
+  canvas.height = canvasHeight = window.innerHeight;
 });
 
-$(self.canvas).on('mousedown', function(e){
-self.mx = e.pageX - self.canvas.offsetLeft;
-self.my = e.pageY - self.canvas.offsetTop;
-self.currentHue = rand(self.hueMin, self.hueMax);
-self.createFireworks(self.cw/2, self.ch, self.mx, self.my);	
-
-$(self.canvas).on('mousemove.fireworks', function(e){
-	self.mx = e.pageX - self.canvas.offsetLeft;
-	self.my = e.pageY - self.canvas.offsetTop;
-	self.currentHue = rand(self.hueMin, self.hueMax);
-	self.createFireworks(self.cw/2, self.ch, self.mx, self.my);									
-});				
+// Add event listeners to the canvas to handle mouse interactions
+canvas.addEventListener('mousemove', function(e) {
+  e.preventDefault();
+  mouse.x = e.pageX - canvas.offsetLeft;
+  mouse.y = e.pageY - canvas.offsetTop;
 });
 
-$(self.canvas).on('mouseup', function(e){
-$(self.canvas).off('mousemove.fireworks');									
+canvas.addEventListener('mousedown', function(e) {
+  e.preventDefault();
+  mouse.down = true;
 });
-		
+
+canvas.addEventListener('mouseup', function(e) {
+  e.preventDefault();
+  mouse.down = false;
+});
+
+// Main application / script, called when the window is loaded
+function gameLoop() {
+  // This function will rund endlessly by using requestAnimationFrame (or fallback to setInterval)
+  requestAnimFrame(gameLoop);
+  
+  // Increase the hue to get different colored fireworks over time
+  currentHue += 0.5;
+  
+  // 'Clear' the canvas at a specific opacity, by using 'destination-out'. This will create a trailing effect.
+  canvasCtx.globalCompositeOperation = 'destination-out';
+  canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  canvasCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+  canvasCtx.globalCompositeOperation = 'lighter';
+  
+  // Loop over all existing fireworks (they should be updated & drawn)
+  var i = fireworks.length;
+  while(i--) {
+    fireworks[i].draw();
+    fireworks[i].update(i);
+  }
+  
+  // Loop over all existing particles (they should be updated & drawn)
+  var i = particles.length;
+  while(i--) {
+    particles[i].draw();
+    particles[i].update(i);
+  }
+  
+  // Draw some text
+  canvasCtx.fillStyle = 'white';
+  canvasCtx.font = '14px Arial';
+  canvasCtx.fillText('Rockets launched: ' + cntRocketsLaunched, 10, 24);
+  
+  // Launch fireworks automatically to random coordinates, if the user does not interact with the scene
+  if(timerTick >= options.timerInterval) {
+    if(!mouse.down) {
+      fireworks.push(new Firework(canvasWidth / 2, canvasHeight, random(0, canvasWidth), random(0, canvasHeight / 2)));
+      timerTick = 0;
+    }
+  } else {
+    timerTick++;
+  }
+  
+  // Limit the rate at which fireworks can be spawned by mouse
+  if(clickLimiterTick >= options.clickLimiter) {
+    if(mouse.down) {
+      fireworks.push(new Firework(canvasWidth / 2, canvasHeight, mouse.x, mouse.y));
+      clickLimiterTick = 0;
+    }
+  } else {
+    clickLimiterTick++;
+  }
 }
 
-self.clear = function(){
-self.particles = [];
-self.fireworks = [];
-self.ctx.clearRect(0, 0, self.cw, self.ch);
-};
-
-
-self.canvasLoop = function(){
-requestAnimFrame(self.canvasLoop, self.canvas);			
-self.ctx.globalCompositeOperation = 'destination-out';
-self.ctx.fillStyle = 'rgba(0,0,0,'+self.clearAlpha/100+')';
-self.ctx.fillRect(0,0,self.cw,self.ch);
-self.updateFireworks();
-self.updateParticles();
-self.drawFireworks();			
-self.drawParticles();
-
-};
-
-self.init();		
-
-}
-
-
-
-var fworks = new Fireworks();
-
-$('#info-toggle').on('click', function(e){
-$('#info-inner').stop(false, true).slideToggle(100);
-e.preventDefault();
-});	
-
-});
+window.onload = gameLoop();
