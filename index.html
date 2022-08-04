@@ -37,13 +37,12 @@
                 }
             });
 
- <div class="box"></div>
+ 
         </script>
 	    <script src="canvas.js"></script>
     </head>
     <body>
-        <canvas id="canvas"></canvas>
-	    <link rel="stylesheet" href="canvas.css">
+       
         
         <a-scene id="scene" arjs='trackingMethod: best; debugUIEnabled: false;' vr-mode-ui="enabled: false" ar-template >
         
@@ -58,7 +57,7 @@
 
             </a-assets>
             
-            
+            <div class="box"></div>
             <!-- Invitation Video Marker -->
 
             <a-marker id="marker1" type='pattern' url='markers/invi-pattern-marker.patt' video-vidhandler>
@@ -73,6 +72,7 @@
             <a-entity camera></a-entity>
 
         </a-scene>
-        
+         <canvas id="canvas"></canvas>
+	    <link rel="stylesheet" href="canvas.css">
     </body>
 </html>
